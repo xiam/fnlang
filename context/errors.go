@@ -5,12 +5,12 @@ import (
 )
 
 var (
-	errFunctionClosed = errors.New("function is closed")
-	errStreamClosed   = errors.New("stream is closed")
+	ErrFunctionClosed = errors.New("function is closed")
+	ErrStreamClosed   = errors.New("stream is closed")
 )
 
 var (
-	errUndefinedValue    = errors.New("undefined value")
-	errUndefinedFunction = errors.New("undefined function")
-	errClosedChannel     = errors.New("closed channel")
+	ErrUndefinedValue    = errors.New("undefined value")
+	ErrUndefinedFunction = errors.New("undefined function")
+	ErrClosedChannel     = errors.New("closed channel")
 )

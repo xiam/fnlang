@@ -95,7 +95,7 @@ func (ctx *Context) Next() bool {
 
 func (ctx *Context) Arguments() ([]*Value, error) {
 	if ctx.inClosed {
-		return nil, errStreamClosed
+		return nil, ErrStreamClosed
 	}
 	args := []*Value{}
 	for ctx.Next() {
@@ -192,9 +192,17 @@ func (ctx *Context) yield(value *Value) error {
 func (ctx *Context) Output() (*Value, error) {
 	out, ok := <-ctx.out
 	if !ok {
-		return nil, errClosedChannel
+		return nil, ErrClosedChannel
 	}
 	return out, nil
+}
+
+func (ctx *Context) Results() (*Value, error) {
+	values, err := ctx.Collect()
+	if err != nil {
+		return nil, err
+	}
+	return NewArrayValue(values), nil
 }
 
 func (ctx *Context) Result() (*Value, error) {
@@ -202,15 +210,13 @@ func (ctx *Context) Result() (*Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	/*
-		if len(values) < 1 {
-			return Nil, nil
-		}
-	*/
-	//return NewValue(values)
-	_ = values
-	_ = err
-	return nil, nil
+	if len(values) > 1 {
+		return nil, errors.New("expecting one result")
+	}
+	if len(values) < 1 {
+		return Nil, nil
+	}
+	return values[0], nil
 }
 
 func (ctx *Context) Collect() ([]*Value, error) {
@@ -218,7 +224,7 @@ func (ctx *Context) Collect() ([]*Value, error) {
 
 	for {
 		value, err := ctx.Output()
-		if err == errClosedChannel {
+		if err == ErrClosedChannel {
 			break
 		}
 		values = append(values, value)
@@ -280,22 +286,17 @@ func New(parent *Context) *Context {
 }
 
 func ExecArgument(ctx *Context, value *Value) (*Value, error) {
+	switch value.Type() {
+	case ValueTypeFunction:
+		newCtx := New(ctx).Name("argument")
+		go func() {
+			defer newCtx.Exit(nil)
+			if err := value.Function().Exec(newCtx); err != nil {
+				panic(err.Error())
+			}
+		}()
+		col, err := newCtx.Results()
+		return col.List()[0], err
+	}
 	return value, nil
-	/*
-		switch value.Type() {
-		case ValueTypeFunction:
-			newCtx := New(ctx).Name("argument")
-			go func() {
-				defer newCtx.Exit(nil)
-				if err := value.Function()(newCtx); err != nil {
-					panic(err.Error())
-				}
-			}()
-			col, err := newCtx.Collect()
-			return col[0], err
-		case ValueTypeList:
-			panic("list")
-		}
-		return value, nil
-	*/
 }

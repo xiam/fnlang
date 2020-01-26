@@ -1,6 +1,11 @@
 package context
 
 import (
+	"fmt"
+	"log"
+	"sort"
+	"strings"
+
 	"github.com/xiam/sexpr/ast"
 )
 
@@ -47,9 +52,9 @@ const (
 )
 
 var (
-	Nil   = fromValuer(ast.NewAtomValue(":nil"))
-	True  = fromValuer(ast.NewAtomValue(":true"))
-	False = fromValuer(ast.NewAtomValue(":false"))
+	Nil   = NewAtomValue(":nil")
+	True  = NewAtomValue(":true")
+	False = NewAtomValue(":false")
 )
 
 type Value struct {
@@ -85,6 +90,18 @@ func fromValuer(v ast.Valuer) *Value {
 }
 
 func NewValue(node *ast.Node) (*Value, error) {
+	switch node.Type() {
+	case ast.NodeTypeInt:
+		return NewIntValue(node.Value().(int64)), nil
+	case ast.NodeTypeAtom:
+		return NewAtomValue(node.Value().(string)), nil
+	case ast.NodeTypeSymbol:
+		return NewSymbolValue(node.Value().(string)), nil
+	case ast.NodeTypeString:
+		return NewStringValue(node.Value().(string)), nil
+	}
+	log.Fatalf("UNHABDLED VALUE: %v", node.Type())
+	panic("NEW VALUE")
 	return nil, nil
 }
 
@@ -101,23 +118,39 @@ func (v *Value) Symbol() string {
 }
 
 func (v *Value) String() string {
-	return v.v.(string)
+	switch v.Type() {
+	case ValueTypeMap:
+		return encodeMap(v.Map())
+	case ValueTypeAtom:
+		return v.v.(string)
+	case ValueTypeString:
+		return fmt.Sprintf("%q", v.v.(string))
+	case ValueTypeInt:
+		return fmt.Sprintf("%d", v.v)
+	case ValueTypeList:
+		return encodeList(v.List())
+	}
+	panic(fmt.Sprintf("reached: %v", v.Type()))
+	return fmt.Sprintf("%v", v.v)
 }
 
 func (v *Value) Function() *Function {
-	fn := func(*Context) error {
-		panic("called")
-		return nil
+	fn := func(ctx *Context) error {
+		return v.v.(func(*Context) error)(ctx)
 	}
 	return NewFunction(fn)
 }
 
+func (v *Value) Map() map[Value]*Value {
+	return v.v.(map[Value]*Value)
+}
+
 func (v *Value) Int() int64 {
-	switch v.valueType {
+	switch v.Type() {
 	case ValueTypeInt:
-		return v.node.Value().(int64)
+		return v.v.(int64)
 	case ValueTypeFloat:
-		return int64(v.node.Value().(float64))
+		return int64(v.v.(float64))
 	}
 	return 0
 }
@@ -127,7 +160,41 @@ func (v *Value) Float() float64 {
 }
 
 func Eq(a *Value, b *Value) bool {
-	return false
+	if a.Type() != b.Type() {
+		return false
+	}
+	if a.String() != b.String() {
+		return false
+	}
+	return true
+}
+
+func NewArrayValue(v []*Value) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeList,
+	}
+}
+
+func NewStringValue(v string) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeString,
+	}
+}
+
+func NewSymbolValue(v string) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeSymbol,
+	}
+}
+
+func NewAtomValue(v string) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeAtom,
+	}
 }
 
 func NewIntValue(v int64) *Value {
@@ -149,4 +216,44 @@ func NewFunctionValue(fn func(*Context) error) *Value {
 		v:         fn,
 		valueType: ValueTypeFunction,
 	}
+}
+
+type sortableValue []Value
+
+func (sv sortableValue) Len() int {
+	return len(sv)
+}
+
+func (sv sortableValue) Less(i, j int) bool {
+	a, b := sv[i].String(), sv[j].String()
+	return a < b
+}
+
+func (sv sortableValue) Swap(i, j int) {
+	sv[i], sv[j] = sv[j], sv[i]
+}
+
+func encodeMap(value map[Value]*Value) string {
+	items := []string{}
+	keys := sortableValue{}
+
+	for k := range value {
+		keys = append(keys, k)
+	}
+	sort.Sort(keys)
+
+	for _, k := range keys {
+		v := value[k]
+		items = append(items, fmt.Sprintf("%s %s", k.String(), v.String()))
+	}
+
+	return fmt.Sprintf("{%s}", strings.Join(items, " "))
+}
+
+func encodeList(values []*Value) string {
+	items := []string{}
+	for i := range values {
+		items = append(items, values[i].String())
+	}
+	return fmt.Sprintf("[%s]", strings.Join(items, " "))
 }

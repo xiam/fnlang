@@ -6,6 +6,7 @@ import (
 
 	//"strings"
 	"errors"
+	"strings"
 	"testing"
 
 	//"time"
@@ -16,29 +17,12 @@ import (
 	"github.com/xiam/sexpr/parser"
 )
 
-func compileValue(in interface{}) ([]byte, error) {
-	var buf string
-	switch v := in.(type) {
-	case *context.Value:
-		s := v.String()
-		return []byte(s), nil
-	case []*context.Value:
-		buf = buf + "["
-		for i := range v {
-			if i > 0 {
-				buf = buf + ", "
-			}
-			chunk, err := compileValue(v[i])
-			if err != nil {
-				return nil, err
-			}
-			buf = buf + string(chunk)
-		}
-		buf = buf + "]"
-	default:
-		return nil, fmt.Errorf("unknown type: %T", in)
+func encodeList(values []*context.Value) string {
+	items := []string{}
+	for i := range values {
+		items = append(items, fmt.Sprintf("%v", values[i]))
 	}
-	return []byte(buf), nil
+	return fmt.Sprintf("[%s]", strings.Join(items, " "))
 }
 
 func TestParserEvaluate(t *testing.T) {
@@ -46,122 +30,128 @@ func TestParserEvaluate(t *testing.T) {
 		In  string
 		Out string
 	}{
-		{
-			In:  `1`,
-			Out: `[1]`,
-		},
-		{
-			In:  `1 2 3`,
-			Out: `[1 2 3]`,
-		},
-		{
-			In:  `[]`,
-			Out: `[[]]`,
-		},
-		{
-			In:  `[1]`,
-			Out: `[[1]]`,
-		},
-		{
-			In: `[ 3 2	1 ]`,
-			Out: `[[3 2 1]]`,
-		},
-		{
-			In: `[	1			 2 [ 4 5 [6 7 8]] 3]`,
-			Out: `[[1 2 [4 5 [6 7 8]] 3]]`,
-		},
-		{
-			In:  `{}`,
-			Out: `[{}]`,
-		},
-		{
-			In:  `{:a}`,
-			Out: `[{:a :nil}]`,
-		},
-		{
-			In: `{ :a 1		 }`,
-			Out: `[{:a 1}]`,
-		},
-		{
-			In:  `{:a 1 :b 2 :c 3 :e [1 2 3]}`,
-			Out: `[{:a 1 :b 2 :c 3 :e [1 2 3]}]`,
-		},
-		{
-			In:  `[{:a 1 :b 2 :c 3 :e [1 2 3]} [1 2 3] 4 :foo]`,
-			Out: `[[{:a 1 :b 2 :c 3 :e [1 2 3]} [1 2 3] 4 :foo]]`,
-		},
-		{
-			In:  `(1)`,
-			Out: `[1]`,
-		},
-		{
-			In:  `(((1)))`,
-			Out: `[1]`,
-		},
-		{
-			In:  `([1])`,
-			Out: `[[1]]`,
-		},
-		{
-			In:  `([[1]])`,
-			Out: `[[[1]]]`,
-		},
-		{
-			In:  `[([1])]`,
-			Out: `[[[1]]]`,
-		},
-		{
-			In: `( [1	2	3 ] )`,
-			Out: `[[1 2 3]]`,
-		},
-		{
-			In:  `(:nil)`,
-			Out: `[:nil]`,
-		},
-		{
-			In:  `(:hello)`,
-			Out: `[:hello]`,
-		},
-		{
-			In:  `(([1 2 3 {:a 4}]))`,
-			Out: `[[1 2 3 {:a 4}]]`,
-		},
-		{
-			In:  `[(nop [ [ (echo :hello) ]])]`,
-			Out: `[[:nil]]`,
-		},
-		{
-			In:  `[(print "hello " "world!")]`,
-			Out: `[[:nil]]`,
-		},
-		{
-			In:  `(echo "foo" "bar")`,
-			Out: `[["foo" "bar"]]`,
-		},
-		{
-			In:  `(["foo" "bar"])`,
-			Out: `[["foo" "bar"]]`,
-		},
-		{
-			In:  `([["foo" "bar"]])`,
-			Out: `[[["foo" "bar"]]]`,
-		},
-		{
-			In:  `((([["foo" "bar"]])))`,
-			Out: `[[["foo" "bar"]]]`,
-		},
-		{
-			In:  `(print "hello world!" " beautiful world!")`,
-			Out: `[:nil]`,
-		},
-		{
-			In: `(echo "hello world!" "beautiful world!"	1		2 )`,
-			Out: `[["hello world!" "beautiful world!" 1 2]]`,
-		},
-		{
-			In:  `(10)`,
-			Out: `[10]`,
-		},
+		/*
+			{
+				In:  `1`,
+				Out: `[1]`,
+			},
+			{
+				In:  `1 2 3`,
+				Out: `[1 2 3]`,
+			},
+			{
+				In:  `[]`,
+				Out: `[[]]`,
+			},
+			{
+				In:  `[1]`,
+				Out: `[[1]]`,
+			},
+			{
+				In: `[ 3 2	1 ]`,
+				Out: `[[3 2 1]]`,
+			},
+			{
+				In: `[	1			 2 [ 4 5 [6 7 8]] 3]`,
+				Out: `[[1 2 [4 5 [6 7 8]] 3]]`,
+			},
+			{
+				In:  `{}`,
+				Out: `[{}]`,
+			},
+			{
+				In:  `{:a}`,
+				Out: `[{:a :nil}]`,
+			},
+			{
+				In: `{ :a 1		 }`,
+				Out: `[{:a 1}]`,
+			},
+			{
+				In:  `{:a 1 :b 2 :c 3 :e [1 2 3]}`,
+				Out: `[{:a 1 :b 2 :c 3 :e [1 2 3]}]`,
+			},
+			{
+				In:  `[{:a 1 :b 2 :c 3 :e [1 2 3]} [1 2 3] 4 :foo]`,
+				Out: `[[{:a 1 :b 2 :c 3 :e [1 2 3]} [1 2 3] 4 :foo]]`,
+			},
+			{
+				In:  `(1)`,
+				Out: `[1]`,
+			},
+			{
+				In:  `([1])`,
+				Out: `[[1]]`,
+			},
+			{
+				In:  `((1))`,
+				Out: `[1]`,
+			},
+			{
+				In:  `(((1)))`,
+				Out: `[1]`,
+			},
+			{
+				In:  `([[1]])`,
+				Out: `[[[1]]]`,
+			},
+			{
+				In:  `[([1])]`,
+				Out: `[[[1]]]`,
+			},
+			{
+				In: `( [1	2	3 ] )`,
+				Out: `[[1 2 3]]`,
+			},
+			{
+				In:  `(:nil)`,
+				Out: `[:nil]`,
+			},
+			{
+				In:  `(:hello)`,
+				Out: `[:hello]`,
+			},
+			{
+				In:  `(([1 2 3 {:a 4}]))`,
+				Out: `[[1 2 3 {:a 4}]]`,
+			},
+			{
+				In:  `[(nop [ [ (echo :hello) ]])]`,
+				Out: `[[:nil]]`,
+			},
+			{
+				In:  `[(print "hello " "world!")]`,
+				Out: `[[:nil]]`,
+			},
+			{
+				In:  `(echo "foo" "bar")`,
+				Out: `[["foo" "bar"]]`,
+			},
+			{
+				In:  `(["foo" "bar"])`,
+				Out: `[["foo" "bar"]]`,
+			},
+			{
+				In:  `([["foo" "bar"]])`,
+				Out: `[[["foo" "bar"]]]`,
+			},
+				{
+					In:  `((([["foo" "bar"]])))`,
+					Out: `[[["foo" "bar"]]]`,
+				},
+				{
+					In:  `(print "hello world!" " beautiful world!")`,
+					Out: `[:nil]`,
+				},
+				{
+					In: `(echo "hello world!" "beautiful world!"	1		2 )`,
+					Out: `[["hello world!" "beautiful world!" 1 2]]`,
+				},
+				{
+					In:  `(10)`,
+					Out: `[10]`,
+				},
+		*/
 		{
 			In:  `(+ 1 2 3 4)`,
 			Out: `[10]`,
@@ -296,233 +286,233 @@ func TestParserEvaluate(t *testing.T) {
 		},
 		{
 			In: `
-				 (when
-					 :false
-						 5
-					 :false
-						 3
-					 :true
-						 6
-					 :false
-						 4
-					 :true
-						 8
-				 )`,
+					 (when
+						 :false
+							 5
+						 :false
+							 3
+						 :true
+							 6
+						 :false
+							 4
+						 :true
+							 8
+					 )`,
 			Out: `[6]`,
 		},
 		{
 			In: `
-				 (when
-					 (= 1 2)
-						 5
-					 :false
-						 3
-					 (:false)
-						 3
-					 (= 3 3)
-						 6
-					 (:false)
-						 1
-				 )`,
+					 (when
+						 (= 1 2)
+							 5
+						 :false
+							 3
+						 (:false)
+							 3
+						 (= 3 3)
+							 6
+						 (:false)
+							 1
+					 )`,
 			Out: `[6]`,
 		},
 		{
 			In: `
-					 (defn F [n]
-						 (when
-							 (= (get n) 0) 0
-							 (= (get n) 1) 1
-							 :true 99
+						 (defn F [n]
+							 (when
+								 (= (get n) 0) 0
+								 (= (get n) 1) 1
+								 :true 99
+							 )
 						 )
-					 )
-					 (F 0)
-					 (F 1)
-					 (F 2)
-					 (F 3)
-					 (F 4)
-					 (F 5)
-					 (F "a")
-					 `,
+						 (F 0)
+						 (F 1)
+						 (F 2)
+						 (F 3)
+						 (F 4)
+						 (F 5)
+						 (F "a")
+						 `,
 			Out: `[:true 0 1 99 99 99 99 99]`,
 		},
 		{
 			In: `
-					 (defn F [n]
-						 (when
-							 (= (get n) 0) 0
-							 (= (get n) 1) 1
-							 (= (get n) 2) 3
-							 :true (F 2)
+						 (defn F [n]
+							 (when
+								 (= (get n) 0) 0
+								 (= (get n) 1) 1
+								 (= (get n) 2) 3
+								 :true (F 2)
+							 )
 						 )
-					 )
-					 `,
+						 `,
 			Out: `[:true]`,
 		},
 		{
 			In: `
-					 (defn F [n]
-						 (when
-							 (= (get n) 0) 0
-							 (= (get n) 1) 1
-							 (= (get n) 2) 3
-							 :true (F 2)
+						 (defn F [n]
+							 (when
+								 (= (get n) 0) 0
+								 (= (get n) 1) 1
+								 (= (get n) 2) 3
+								 :true (F 2)
+							 )
 						 )
-					 )
-					 (F 0)
-					 (F 1)
-					 (F 2)
-					 (F 3)
-					 (F 4)
-					 (F 5)
-					 `,
+						 (F 0)
+						 (F 1)
+						 (F 2)
+						 (F 3)
+						 (F 4)
+						 (F 5)
+						 `,
 			Out: `[:true 0 1 3 3 3 3]`,
 		},
 		{
 			In: `
-					(set x 1)
-					(get x)
-					[
+						(set x 1)
 						(get x)
-						(set x 2)
+						[
+							(get x)
+							(set x 2)
+							(get x)
+						]
 						(get x)
-					]
-					(get x)
-					(set x 6)
-					(get x)
-					[
+						(set x 6)
 						(get x)
-						(set x 9)
-						[(get x) (set x 10) (get x)]
+						[
+							(get x)
+							(set x 9)
+							[(get x) (set x 10) (get x)]
+							(get x)
+						]
 						(get x)
-					]
-					(get x)
-				`,
+					`,
 			Out: `[:true 1 [1 :true 2] 1 :true 6 [6 :true [9 :true 10] 9] 6]`,
 		},
 		{
 			In: `
-				(
-					defn foo []
-						[
-							(
-								echo :hello
-							)
-							(
-								set x 1
-							)
-							(
-								get x
-							)
-						]
-				)
-				(foo)
-				`,
+					(
+						defn foo []
+							[
+								(
+									echo :hello
+								)
+								(
+									set x 1
+								)
+								(
+									get x
+								)
+							]
+					)
+					(foo)
+					`,
 			Out: `[:true [:hello :true 1]]`,
 		},
 		{
 			In: `
-			(
-				defn foo [] [
-					(set x 1)
-					(get x)
-				]
-			)
-			(foo)
-			`,
+				(
+					defn foo [] [
+						(set x 1)
+						(get x)
+					]
+				)
+				(foo)
+				`,
 			Out: `[:true [:true 1]]`,
 		},
 		{
 			In: `
-			(set x 6)
-			(
-				defn foo [] [
-					(set x 1)
-					(get x)
-				]
-			)
-			(get x)
-			(foo)
-			(get x)
-			`,
+				(set x 6)
+				(
+					defn foo [] [
+						(set x 1)
+						(get x)
+					]
+				)
+				(get x)
+				(foo)
+				(get x)
+				`,
 			Out: `[:true :true 6 [:true 1] 6]`,
 		},
 		{
 			In: `
-			(set x 1)
-			(get x)
-			`,
+				(set x 1)
+				(get x)
+				`,
 			Out: `[:true 1]`,
 		},
 		{
 			In: `
-			 (defn F [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true 2
+				 (defn F [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true 2
+					 )
 				 )
-			 )
-			 (F 0)
-			 (F 1)
-			 (F 2)
-			 (F 3)
-			 (F 4)
-			 (F 5)
-			 (F 6)`,
+				 (F 0)
+				 (F 1)
+				 (F 2)
+				 (F 3)
+				 (F 4)
+				 (F 5)
+				 (F 6)`,
 			Out: `[:true 0 1 2 2 2 2 2]`,
 		},
 		{
 			In: `
-			 (defn F [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true (F 1)
+				 (defn F [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true (F 1)
+					 )
 				 )
-			 )
-			 (F 0)
-			 (F 1)
-			 (F 2)
-			 (F 3)
-			 (F 4)
-			 (F 5)
-			 (F 6)`,
+				 (F 0)
+				 (F 1)
+				 (F 2)
+				 (F 3)
+				 (F 4)
+				 (F 5)
+				 (F 6)`,
 			Out: `[:true 0 1 1 1 1 1 1]`,
 		},
 		{
 			In: `
-			 (defn F [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true (+ (F 1) 1)
+				 (defn F [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true (+ (F 1) 1)
+					 )
 				 )
-			 )
-			 (F 0)
-			 (F 1)
-			 (F 2)
-			 (F 3)
-			 (F 4)
-			 (F 5)
-			 (F 6)`,
+				 (F 0)
+				 (F 1)
+				 (F 2)
+				 (F 3)
+				 (F 4)
+				 (F 5)
+				 (F 6)`,
 			Out: `[:true 0 1 2 2 2 2 2]`,
 		},
 		{
 			In: `
-			 (defn F [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true (+ (F 1) (F 1))
+				 (defn F [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true (+ (F 1) (F 1))
+					 )
 				 )
-			 )
-			 (F 0)
-			 (F 1)
-			 (F 2)
-			 (F 3)
-			 (F 4)
-			 (F 5)
-			 (F 6)`,
+				 (F 0)
+				 (F 1)
+				 (F 2)
+				 (F 3)
+				 (F 4)
+				 (F 5)
+				 (F 6)`,
 			Out: `[:true 0 1 2 2 2 2 2]`,
 		},
 		{
@@ -539,43 +529,43 @@ func TestParserEvaluate(t *testing.T) {
 		},
 		{
 			In: `
-			 (defn F [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true (- (F 1) 1)
+				 (defn F [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true (- (F 1) 1)
+					 )
 				 )
-			 )
-			 (F 0)
-			 (F 1)
-			 (F 2)
-			 (F 3)
-			 (F 4)
-			 (F 5)
-			 (F 6)`,
+				 (F 0)
+				 (F 1)
+				 (F 2)
+				 (F 3)
+				 (F 4)
+				 (F 5)
+				 (F 6)`,
 			Out: `[:true 0 1 0 0 0 0 0]`,
 		},
 		{
 			In: `
-			 (defn fib [n]
-				 (when
-					 (= (get n) 0) 0
-					 (= (get n) 1) 1
-					 :true (
-						 +
-						 (fib (- (get n) 1))
-						 (fib (- (get n) 2))
+				 (defn fib [n]
+					 (when
+						 (= (get n) 0) 0
+						 (= (get n) 1) 1
+						 :true (
+							 +
+							 (fib (- (get n) 1))
+							 (fib (- (get n) 2))
+						 )
 					 )
 				 )
-			 )
-			 (fib 0)
-			 (fib 1)
-			 (fib 2)
-			 (fib 3)
-			 (fib 4)
-			 (fib 5)
-			 (fib 6)
-			 `,
+				 (fib 0)
+				 (fib 1)
+				 (fib 2)
+				 (fib 3)
+				 (fib 4)
+				 (fib 5)
+				 (fib 6)
+				 `,
 			Out: `[:true 0 1 1 2 3 5 8]`,
 		},
 	}
@@ -679,7 +669,7 @@ func TestParserEvaluate(t *testing.T) {
 				continue
 			}
 
-			if (*first).Symbol() != value.Symbol() {
+			if !context.Eq(first, value) {
 				ctx.Yield(context.False)
 				return nil
 			}
@@ -815,9 +805,6 @@ func TestParserEvaluate(t *testing.T) {
 		_, result, err := eval(root)
 		assert.NoError(t, err)
 
-		s, err := compileValue(result)
-		assert.NoError(t, err)
-
-		assert.Equal(t, testCases[i].Out, string(s))
+		assert.Equal(t, testCases[i].Out, result[0].String())
 	}
 }

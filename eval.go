@@ -1,23 +1,11 @@
 package fnlang
 
 import (
-	"errors"
 	"fmt"
 	"log"
 
 	"github.com/xiam/fnlang/context"
 	"github.com/xiam/sexpr/ast"
-)
-
-var (
-	errFunctionClosed = errors.New("function is closed")
-	errStreamClosed   = errors.New("stream is closed")
-)
-
-var (
-	errUndefinedValue    = errors.New("undefined value")
-	errUndefinedFunction = errors.New("undefined function")
-	errClosedChannel     = errors.New("closed channel")
 )
 
 var defaultContext = context.New(nil).Name("root").Executable()
@@ -44,7 +32,7 @@ func execFunctionBody(ctx *context.Context, body *context.Value) error {
 			defer newCtx.Exit(nil)
 			return body.Function().Exec(newCtx)
 		}()
-		values, err := newCtx.Result()
+		values, err := newCtx.Results()
 		if err != nil {
 			return err
 		}
@@ -69,7 +57,7 @@ func prepareFunc(values []*context.Value) *context.Value {
 
 		if len(values) == 1 {
 			switch fn.Type() {
-			case context.ValueTypeInt, context.ValueTypeAtom, context.ValueTypeList:
+			case context.ValueTypeInt, context.ValueTypeAtom, context.ValueTypeList, context.ValueTypeString, context.ValueTypeMap:
 				ctx.Yield(fn)
 				return nil
 			}
@@ -92,7 +80,7 @@ func prepareFunc(values []*context.Value) *context.Value {
 		fnName := fn.Symbol()
 		fn, err := ctx.Get(fnName)
 		if err != nil {
-			if err == errUndefinedFunction {
+			if err == context.ErrUndefinedFunction {
 				log.Fatalf("undefined function %q", fnName)
 				return fmt.Errorf("undefined function %q", fnName)
 			}
@@ -168,7 +156,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 			}
 		}()
 
-		value, err := newCtx.Result()
+		value, err := newCtx.Results()
 		if err != nil {
 			return err
 		}
@@ -193,7 +181,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 		for {
 			value, err := newCtx.Output()
 			if err != nil {
-				if err == errClosedChannel {
+				if err == context.ErrClosedChannel {
 					value := context.NewMapValue(result)
 					return ctx.Yield(value)
 				}
@@ -224,7 +212,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 			return nil
 		}()
 
-		values, err := newCtx.Result()
+		values, err := newCtx.Results()
 		if err != nil {
 			return err
 		}
@@ -242,7 +230,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 				}
 			}()
 
-			values, err := execCtx.Result()
+			values, err := execCtx.Results()
 			if err != nil {
 				return err
 			}
@@ -260,7 +248,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 	panic("unreachable")
 }
 
-func eval(node *ast.Node) (*context.Context, interface{}, error) {
+func eval(node *ast.Node) (*context.Context, []*context.Value, error) {
 	newCtx := context.New(defaultContext).Name("eval")
 
 	go func() {
@@ -281,9 +269,9 @@ func eval(node *ast.Node) (*context.Context, interface{}, error) {
 		return newCtx, nil, nil
 	}
 
-	if len(values) == 1 {
-		return newCtx, values[0], nil
-	}
+	//if len(values) == 1 {
+	//	return newCtx, values[0], nil
+	//}
 
 	return newCtx, values, nil
 }
