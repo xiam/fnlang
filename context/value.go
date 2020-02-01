@@ -239,6 +239,13 @@ func NewFloatValue(v float64) *Value {
 	}
 }
 
+func NewListValue(v []*Value) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeList,
+	}
+}
+
 func NewIntValue(v int64) *Value {
 	return &Value{
 		v:         v,
