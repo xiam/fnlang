@@ -287,6 +287,34 @@ func New(parent *Context) *Context {
 
 func ExecArgument(ctx *Context, value *Value) (*Value, error) {
 	switch value.Type() {
+	case ValueTypeInt:
+		return value, nil
+	case ValueTypeList:
+		var err error
+		m := value.List()
+		for k := range m {
+			m[k], err = ExecArgument(ctx, m[k])
+			if err != nil {
+				return nil, err
+			}
+		}
+		return value, nil
+	case ValueTypeMap:
+		var err error
+		m := value.Map()
+		for k := range m {
+			m[k], err = ExecArgument(ctx, m[k])
+			if err != nil {
+				return nil, err
+			}
+		}
+		return value, nil
+	case ValueTypeSymbol:
+		v, err := ctx.Get(value.String())
+		if err != nil {
+			return nil, err
+		}
+		return v, nil
 	case ValueTypeFunction:
 		newCtx := New(ctx).Name("argument")
 		go func() {

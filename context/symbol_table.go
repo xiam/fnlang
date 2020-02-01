@@ -2,6 +2,7 @@ package context
 
 import (
 	"errors"
+	"fmt"
 	//"log"
 )
 
@@ -55,5 +56,5 @@ func (st *symbolTable) Get(name string) (*Value, error) {
 	//if st.p != nil {
 	//	return st.p.Get(name)
 	//}
-	return nil, errors.New("no such key")
+	return nil, fmt.Errorf("no such key: %q", name)
 }

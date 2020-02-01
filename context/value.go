@@ -51,6 +51,29 @@ const (
 	ValueTypeFunction
 )
 
+func (vt ValueType) String() string {
+	switch vt {
+	case ValueTypeInt:
+		return ":int"
+	case ValueTypeFloat:
+		return ":float"
+	case ValueTypeSymbol:
+		return ":symbol"
+	case ValueTypeAtom:
+		return ":atom"
+	case ValueTypeString:
+		return ":string"
+	case ValueTypeMap:
+		return ":map"
+	case ValueTypeList:
+		return ":list"
+	case ValueTypeFunction:
+		return ":func"
+	}
+
+	panic("reached")
+}
+
 var (
 	Nil   = NewAtomValue(":nil")
 	True  = NewAtomValue(":true")
@@ -93,6 +116,8 @@ func NewValue(node *ast.Node) (*Value, error) {
 	switch node.Type() {
 	case ast.NodeTypeInt:
 		return NewIntValue(node.Value().(int64)), nil
+	case ast.NodeTypeFloat:
+		return NewFloatValue(node.Value().(float64)), nil
 	case ast.NodeTypeAtom:
 		return NewAtomValue(node.Value().(string)), nil
 	case ast.NodeTypeSymbol:
@@ -113,6 +138,10 @@ func (v *Value) List() []*Value {
 	return v.v.([]*Value)
 }
 
+func (v *Value) Atom() string {
+	return v.v.(string)
+}
+
 func (v *Value) Symbol() string {
 	return v.v.(string)
 }
@@ -123,12 +152,18 @@ func (v *Value) String() string {
 		return encodeMap(v.Map())
 	case ValueTypeAtom:
 		return v.v.(string)
+	case ValueTypeSymbol:
+		return v.v.(string)
 	case ValueTypeString:
 		return fmt.Sprintf("%q", v.v.(string))
 	case ValueTypeInt:
 		return fmt.Sprintf("%d", v.v)
+	case ValueTypeFloat:
+		return fmt.Sprintf("%v", v.v)
 	case ValueTypeList:
 		return encodeList(v.List())
+	case ValueTypeFunction:
+		return fmt.Sprintf("<function: %v>", v.v)
 	}
 	panic(fmt.Sprintf("reached: %v", v.Type()))
 	return fmt.Sprintf("%v", v.v)
@@ -141,7 +176,7 @@ func (v *Value) Function() *Function {
 	return NewFunction(fn)
 }
 
-func (v *Value) Map() map[Value]*Value {
+func (v *Value) Map() Map {
 	return v.v.(map[Value]*Value)
 }
 
@@ -194,6 +229,13 @@ func NewAtomValue(v string) *Value {
 	return &Value{
 		v:         v,
 		valueType: ValueTypeAtom,
+	}
+}
+
+func NewFloatValue(v float64) *Value {
+	return &Value{
+		v:         v,
+		valueType: ValueTypeFloat,
 	}
 }
 
