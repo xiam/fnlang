@@ -394,6 +394,19 @@ func init() {
 		return nil
 	})
 
+	fnlang.Defn("println", func(ctx *context.Context) error {
+		for ctx.Next() {
+			value, err := ctx.Argument()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s\n", value.Symbol())
+		}
+
+		ctx.Yield(context.Nil)
+		return nil
+	})
+
 	fnlang.Defn("print", func(ctx *context.Context) error {
 		for ctx.Next() {
 			value, err := ctx.Argument()
