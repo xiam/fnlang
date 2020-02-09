@@ -39,6 +39,10 @@ type Context struct {
 	st *symbolTable
 }
 
+func (ctx *Context) Closed() bool {
+	return ctx.outClosed
+}
+
 func (ctx *Context) Name(name string) *Context {
 	ctx.name = name
 	return ctx

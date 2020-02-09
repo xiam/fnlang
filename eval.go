@@ -210,7 +210,7 @@ func evalContextList(ctx *context.Context, nodes []*ast.Node) error {
 
 func newErrorMap(err error) *context.Value {
 	k := context.NewAtomValue(":error")
-	v := context.NewSymbolValue(err.Error())
+	v := context.NewStringValue(err.Error())
 	return context.NewMapValue(map[context.Value]*context.Value{*k: v})
 }
 
@@ -234,6 +234,9 @@ func runtimeError(ctx *context.Context, n *ast.Node, err error) error {
 }
 
 func evalContext(ctx *context.Context, n *ast.Node) error {
+	if ctx.Closed() {
+		return nil
+	}
 
 	if n.IsValue() {
 		value, err := context.NewValue(n)
@@ -246,6 +249,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 	switch n.Type() {
 
 	case ast.NodeTypeList:
+		log.Printf("EVAL.LIST")
 		newCtx := context.New(ctx).Name("list")
 
 		fnErr := make(chan error, 1)
@@ -258,6 +262,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 		if err != nil {
 			return err
 		}
+		log.Printf("VAUE: %v", value)
 		ctx.Yield(value)
 
 		if err := <-fnErr; err != nil {

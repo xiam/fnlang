@@ -236,6 +236,9 @@ func init() {
 			}
 		}
 
+		if params == nil {
+			return errors.New("missing parameters list")
+		}
 		paramsList := params.List()
 
 		wrapperFn := context.NewFunctionValue(func(ctx *context.Context) error {
