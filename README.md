@@ -24,6 +24,32 @@ fn < _examples/003-square.fn
 # [[:true 100 10000 1000000]]
 ```
 
+### Examples
+
+#### Fibonacci numbers
+
+```lisp
+(defn fib [n]
+	(when
+		(= n 0) 0
+		(= n 1) 1
+		:true (+ (fib (- n 1)) (fib (- n 2)))
+	)
+)
+
+(fib 0)
+(fib 1)
+(fib 2)
+(fib 3)
+(fib 4)
+(fib 5)
+(fib 6)
+```
+
+```
+[[:true 0 1 1 2 3 5 8]]
+```
+
 ## Built-in types
 
 ### Atom
