@@ -10,7 +10,7 @@ built on top of the [Go](https://golang.org) programming language.
 Install the CLI interpreter and feed it with some examples:
 
 ```sh
-go install github.com/xiam/fnlang/cmd/fn
+go get github.com/xiam/fnlang/cmd/fn
 
 fn < _examples/001-hello-world.fn
 # Hello world!
