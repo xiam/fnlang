@@ -113,7 +113,6 @@ func fromValuer(v ast.Valuer) *Value {
 }
 
 func (v *Value) SetNode(n *ast.Node) {
-	log.Printf("NODE: %v", n)
 	v.node = n
 }
 
