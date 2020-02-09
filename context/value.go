@@ -112,6 +112,15 @@ func fromValuer(v ast.Valuer) *Value {
 	}
 }
 
+func (v *Value) SetNode(n *ast.Node) {
+	log.Printf("NODE: %v", n)
+	v.node = n
+}
+
+func (v *Value) Node() *ast.Node {
+	return v.node
+}
+
 func NewValue(node *ast.Node) (*Value, error) {
 	switch node.Type() {
 	case ast.NodeTypeInt:

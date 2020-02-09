@@ -26,26 +26,43 @@ func Defn(name string, fn func(ctx *context.Context) error) {
 
 func execFunctionBody(ctx *context.Context, body *context.Value) error {
 	switch body.Type() {
+	case context.ValueTypeInt:
+		ctx.Yield(body)
+		return nil
 	case context.ValueTypeFunction:
 		log.Printf("execFunctionBody: FUNCTION")
-		newCtx := context.NewClosure(ctx).Name("exec-body")
-		go func() error {
+		newCtx := context.New(ctx).Name("exec-body")
+		fnErr := make(chan error, 1)
+		go func() {
 			defer newCtx.Exit(nil)
-			return body.Function().Exec(newCtx)
+			fnErr <- body.Function().Exec(newCtx)
 		}()
 		values, err := newCtx.Results()
 		if err != nil {
 			return err
 		}
 		ctx.Yield(values.List()...)
+		if err := <-fnErr; err != nil {
+			return runtimeError(ctx, body.Node(), err)
+		}
 		return nil
 	case context.ValueTypeList:
+		newCtx := context.New(ctx).Name("exec-list")
 		log.Printf("execFunctionBody: LIST")
-		for _, item := range body.List() {
-			if err := execFunctionBody(ctx, item); err != nil {
-				return err
+		go func() error {
+			defer newCtx.Exit(nil)
+			for _, item := range body.List() {
+				if err := execFunctionBody(newCtx, item); err != nil {
+					return err
+				}
 			}
+			return nil
+		}()
+		values, err := newCtx.Results()
+		if err != nil {
+			return err
 		}
+		ctx.Yield(values)
 		return nil
 	default:
 		log.Fatalf("unhandled type: %v", body.Type())
@@ -60,7 +77,7 @@ func derefFunc(ctx *context.Context, fn *context.Function) (*context.Value, erro
 		defer execCtx.Exit(nil)
 
 		if err := fn.Exec(execCtx); err != nil {
-			log.Fatalf("ERR: %v", err)
+			log.Fatalf("ERR1: %v", err)
 		}
 	}()
 
@@ -182,115 +199,37 @@ func prepareFunc(values []*context.Value) *context.Value {
 	})
 }
 
-func xprepareFunc1(values []*context.Value) *context.Value {
-	return context.NewFunctionValue(func(ctx *context.Context) error {
-
-		log.Printf("FUNC: %v", values)
-
-		fn := values[0]
-
-		if len(values) == 1 {
-			switch fn.Type() {
-			case
-				context.ValueTypeInt,
-				context.ValueTypeAtom,
-				context.ValueTypeList,
-				context.ValueTypeString,
-				context.ValueTypeMap:
-				ctx.Yield(fn)
-				return nil
-			}
-		}
-
-		if fn.Type() == context.ValueTypeFunction {
-			var err error
-			fn, err = context.ExecArgument(ctx, fn)
-			if err != nil {
-				return err
-			}
-		}
-
-		switch fn.Type() {
-		case context.ValueTypeSymbol:
-			fnName := fn.Symbol()
-			var err error
-			fn, err = ctx.Get(fnName)
-			log.Printf("GET: %v, FN: %v, ERR: %v", fnName, fn, err)
-			//if err != nil {
-			//	return err
-			//}
-			//ctx.Yield(fn)
-			//return nil
-		case context.ValueTypeList:
-			node, err := mapListItem(fn, values[1:])
-			if err != nil {
-				return err
-			}
-			ctx.Yield(node)
-			return nil
-		case context.ValueTypeAtom, context.ValueTypeInt:
-			ctx.Yield(fn)
-			return nil
-		}
-
-		if fn.Type() != context.ValueTypeFunction {
-			fnName := fn.Symbol()
-			var err error
-			fn, err = ctx.Get(fnName)
-			if err != nil {
-				if err == context.ErrUndefinedFunction {
-					log.Fatalf("undefined function %q", fnName)
-					return fmt.Errorf("undefined function %q", fnName)
-				}
-				return err
-			}
-			log.Printf("1111 GET: %v, FN: %v, ERR: %v", fnName, fn, err)
-		}
-
-		switch fn.Type() {
-		case context.ValueTypeMap:
-			node, err := mapElement(fn, values[1:])
-			if err != nil {
-				return err
-			}
-			ctx.Yield(node)
-			return nil
-		case context.ValueTypeList:
-			node, err := mapListItem(fn, values[1:])
-			if err != nil {
-				return err
-			}
-			ctx.Yield(node)
-			return nil
-		case
-			context.ValueTypeInt,
-			context.ValueTypeAtom,
-			context.ValueTypeString:
-			ctx.Yield(fn)
-			return nil
-		}
-
-		go func() {
-			defer ctx.Close()
-
-			for i := 1; i < len(values) && ctx.Accept(); i++ {
-				ctx.Push(values[i])
-			}
-		}()
-
-		return fn.Function().Exec(ctx)
-	})
-}
-
 func evalContextList(ctx *context.Context, nodes []*ast.Node) error {
 	for i := range nodes {
-		err := evalContext(ctx, nodes[i])
-		if err != nil {
-			//ctx.outErr <- err
+		if err := evalContext(ctx, nodes[i]); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
+func newErrorMap(err error) *context.Value {
+	k := context.NewAtomValue(":error")
+	v := context.NewSymbolValue(err.Error())
+	return context.NewMapValue(map[context.Value]*context.Value{*k: v})
+}
+
+func runtimeError(ctx *context.Context, n *ast.Node, err error) error {
+	if n == nil {
+		log.Printf("runtime error: %v", err)
+		ctx.Yield(newErrorMap(err))
+		ctx.Exit(err)
+		return nil
+	}
+	tok := n.Token()
+	line, col := tok.Pos()
+	log.Printf("runtime error: %v (near %v, line: %v, col: %v)",
+		err,
+		fmt.Sprintf("[%s]", string(ast.Encode(n.Parent()))),
+		line,
+		col)
+	ctx.Yield(newErrorMap(err))
+	ctx.Exit(err)
 	return nil
 }
 
@@ -308,18 +247,24 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 
 	case ast.NodeTypeList:
 		newCtx := context.New(ctx).Name("list")
+
+		fnErr := make(chan error, 1)
 		go func() {
 			defer newCtx.Exit(nil)
-			err := evalContextList(newCtx, n.List())
-			if err != nil {
-				return
-			}
+			fnErr <- evalContextList(newCtx, n.List())
 		}()
 
 		value, err := newCtx.Results()
 		if err != nil {
 			return err
 		}
+		ctx.Yield(value)
+
+		if err := <-fnErr; err != nil {
+			return runtimeError(ctx, n, err)
+		}
+
+		return nil
 
 		return ctx.Yield(value)
 
@@ -361,15 +306,11 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 	case ast.NodeTypeExpression:
 
 		newCtx := context.NewClosure(ctx).Name("expr-eval").NonExecutable()
-		go func() error {
+
+		fnErr := make(chan error, 1)
+		go func() {
 			defer newCtx.Exit(nil)
-
-			err := evalContextList(newCtx, n.List())
-			if err != nil {
-				return err
-			}
-
-			return nil
+			fnErr <- evalContextList(newCtx, n.List())
 		}()
 
 		values, err := newCtx.Results()
@@ -377,22 +318,28 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 			return err
 		}
 
+		if err := <-fnErr; err != nil {
+			return runtimeError(ctx, n, err)
+		}
+
 		fn := prepareFunc(values.List())
 
 		if ctx.IsExecutable() {
 			execCtx := context.New(ctx).Name("expr-exec")
 
+			fnErr := make(chan error, 1)
 			go func() {
 				defer execCtx.Exit(nil)
-
-				if err := fn.Function().Exec(execCtx); err != nil {
-					log.Fatalf("ERR: %v", err)
-				}
+				fnErr <- fn.Function().Exec(execCtx)
 			}()
 
 			values, err := execCtx.Results()
 			if err != nil {
-				return err
+				return runtimeError(ctx, n, err)
+			}
+
+			if err := <-fnErr; err != nil {
+				return runtimeError(ctx, n, err)
 			}
 
 			if len(values.List()) == 1 {
@@ -411,17 +358,19 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 func eval(node *ast.Node) (*context.Context, []*context.Value, error) {
 	newCtx := context.New(defaultContext).Name("eval")
 
+	fnErr := make(chan error, 1)
 	go func() {
 		defer newCtx.Exit(nil)
-
-		if err := evalContext(newCtx, node); err != nil {
-			log.Fatalf("EVAL.CONTEXT: %v", err)
-			return
-		}
+		fnErr <- evalContext(newCtx, node)
 	}()
 
 	values, err := newCtx.Collect()
 	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := <-fnErr; err != nil {
+		log.Printf("values: %v", values)
 		return nil, nil, err
 	}
 

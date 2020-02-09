@@ -1,20 +1,19 @@
 package fnlang
 
 import (
+	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/xiam/sexpr/parser"
 )
 
-func TestErrorMessages(t *testing.T) {
+func TestSyntaxError(t *testing.T) {
 	testCases := []struct {
-		In  string
-		Out string
+		In string
 	}{
 		{
-			In:  `(1`,
-			Out: `[1]`,
+			In: `(1`,
 		},
 	}
 
@@ -22,5 +21,56 @@ func TestErrorMessages(t *testing.T) {
 		root, err := parser.Parse([]byte(testCases[i].In))
 		assert.Error(t, err)
 		assert.Nil(t, root)
+	}
+}
+
+func TestUserError(t *testing.T) {
+	testCases := []struct {
+		In string
+	}{
+		/*
+			{
+				In: `
+					[
+						[9 2 7 (:error "failed 1") 5 6 7]
+						[8 7 3 4 5]
+						[1 (:error "failed 2") 5]
+						663
+						757
+					]
+					[8 5 4 2 4]
+					5 6
+				`,
+			},
+		*/
+		{
+			In: `
+				(defn foo [] [
+					(echo "foo")
+					1
+					[
+						9 99
+						(:error "stopped")
+						999
+						[
+							3 33 333
+						]
+					]
+					2
+					[5 6]
+				])
+				(foo)
+			`,
+		},
+	}
+
+	for i := range testCases {
+		root, err := parser.Parse([]byte(testCases[i].In))
+		assert.NoError(t, err)
+
+		_, result, err := eval(root)
+		assert.NoError(t, err)
+
+		log.Printf("RESULT: %v", result)
 	}
 }
