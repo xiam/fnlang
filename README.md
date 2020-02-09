@@ -24,6 +24,18 @@ fn < _examples/003-square.fn
 # [[:true 100 10000 1000000]]
 ```
 
+Please note that the CLI is still very rudimentary and it doesn't offer any
+REPL capabilities yet:
+
+```sh
+echo '(* 34 4 2 3 5 6)' | fn
+# [[24480]]
+echo '(- 12 34 (+ 3 4 5))' | fn
+# [[-34]]
+echo '(defn foo [x] [(echo x)]) (foo "hello world!")' | fn
+# [[:true ["hello world!"]]]
+```
+
 ### Examples
 
 #### Fibonacci numbers
