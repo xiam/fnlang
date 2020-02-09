@@ -3,7 +3,6 @@ package fnlang
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/xiam/fnlang/context"
 )
@@ -73,45 +72,106 @@ func init() {
 	})
 
 	Defn("-", func(ctx *context.Context) error {
-		result := int64(0)
+		result := (interface{})(int64(0))
 		for i := 0; ctx.Next(); i++ {
 			value, err := ctx.Argument()
 			if err != nil {
 				return err
 			}
 			if i < 1 {
-				result = value.Int()
+				result = value.Numeric()
 				continue
 			}
-			result -= value.Int()
+
+			if value.Type() == context.ValueTypeFloat {
+				if _, ok := result.(float64); !ok {
+					result = float64(result.(int64))
+				}
+			}
+			switch result.(type) {
+			case float64:
+				result = result.(float64) - value.Float()
+			case int64:
+				result = result.(int64) - value.Int()
+			}
 		}
-		ctx.Yield(context.NewIntValue(result))
+		ctx.Yield(context.NewNumericValue(result))
 		return nil
 	})
 
 	Defn("+", func(ctx *context.Context) error {
-		result := int64(0)
+		result := (interface{})(int64(0))
 		for ctx.Next() {
 			value, err := ctx.Argument()
 			if err != nil {
 				return err
 			}
-			result += value.Int()
+			if value.Type() == context.ValueTypeFloat {
+				if _, ok := result.(float64); !ok {
+					result = float64(result.(int64))
+				}
+			}
+			switch result.(type) {
+			case float64:
+				result = result.(float64) + value.Float()
+			case int64:
+				result = result.(int64) + value.Int()
+			}
 		}
-		ctx.Yield(context.NewIntValue(result))
+		ctx.Yield(context.NewNumericValue(result))
+		return nil
+	})
+
+	Defn("/", func(ctx *context.Context) error {
+		result := (interface{})(nil)
+		for ctx.Next() {
+			value, err := ctx.Argument()
+			if err != nil {
+				return err
+			}
+			if result == nil {
+				result = value.Numeric()
+				continue
+			}
+			if value.IsFloat() {
+				if _, ok := result.(float64); !ok {
+					result = float64(result.(int64))
+				}
+			}
+			switch result.(type) {
+			case float64:
+				result = result.(float64) / value.Float()
+			case int64:
+				result = result.(int64) / value.Int()
+			}
+		}
+		if result == nil {
+			return errors.New("wrong number of arguments")
+		}
+		ctx.Yield(context.NewNumericValue(result))
 		return nil
 	})
 
 	Defn("*", func(ctx *context.Context) error {
-		result := int64(1)
+		result := (interface{})(int64(1))
 		for ctx.Next() {
 			value, err := ctx.Argument()
 			if err != nil {
 				return err
 			}
-			result *= value.Int()
+			if value.Type() == context.ValueTypeFloat {
+				if _, ok := result.(float64); !ok {
+					result = float64(result.(int64))
+				}
+			}
+			switch result.(type) {
+			case float64:
+				result = result.(float64) * value.Float()
+			case int64:
+				result = result.(int64) * value.Int()
+			}
 		}
-		ctx.Yield(context.NewIntValue(result))
+		ctx.Yield(context.NewNumericValue(result))
 		return nil
 	})
 
@@ -174,7 +234,6 @@ func init() {
 	})
 
 	Defn("fn", func(ctx *context.Context) error {
-		log.Printf("EXEC-FN: 1")
 		var params, body *context.Value
 
 		ctx = ctx.NonExecutable()
@@ -191,16 +250,12 @@ func init() {
 				body = arg
 			}
 		}
-		log.Printf("EXEC-FN: 1.1: %v - %v", params, body)
 
 		paramsList := params.List()
 
 		wrapperFn := context.NewFunctionValue(func(ctx *context.Context) error {
-			log.Printf("EXEC-FN: 2")
-			log.Printf("EXEC BODY: %v??", body)
 			for i := 0; ctx.Next() && i < len(paramsList); i++ {
 				arg, err := ctx.Argument()
-				log.Printf("ARG: %v (%v), ERR: %v", arg, arg.Type(), err)
 				if err != nil {
 					return err
 				}
@@ -209,7 +264,6 @@ func init() {
 
 			return execFunctionBody(ctx, body)
 		})
-		log.Printf("WRAPPER-FN: %v", wrapperFn)
 
 		ctx.Yield(wrapperFn)
 
@@ -360,7 +414,6 @@ func init() {
 			value = context.Nil
 		}
 
-		log.Printf("SET NAME: %v, VALUE: %v", name, value)
 		ctx.Parent.Set(name.Symbol(), value)
 		ctx.Yield(context.True)
 

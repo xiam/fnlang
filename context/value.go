@@ -189,6 +189,20 @@ func (v *Value) Map() Map {
 	return v.v.(map[Value]*Value)
 }
 
+func (v *Value) IsFloat() bool {
+	return v.Type() == ValueTypeFloat
+}
+
+func (v *Value) Numeric() interface{} {
+	switch v.Type() {
+	case ValueTypeInt:
+		return v.v.(int64)
+	case ValueTypeFloat:
+		return v.v.(float64)
+	}
+	return int64(0)
+}
+
 func (v *Value) Int() int64 {
 	switch v.Type() {
 	case ValueTypeInt:
@@ -200,6 +214,12 @@ func (v *Value) Int() int64 {
 }
 
 func (v *Value) Float() float64 {
+	switch v.Type() {
+	case ValueTypeInt:
+		return float64(v.v.(int64))
+	case ValueTypeFloat:
+		return v.v.(float64)
+	}
 	return 0
 }
 
@@ -253,6 +273,16 @@ func NewListValue(v []*Value) *Value {
 		v:         v,
 		valueType: ValueTypeList,
 	}
+}
+
+func NewNumericValue(v interface{}) *Value {
+	switch v.(type) {
+	case int64:
+		return NewIntValue(v.(int64))
+	case float64:
+		return NewFloatValue(v.(float64))
+	}
+	return NewIntValue(0)
 }
 
 func NewIntValue(v int64) *Value {

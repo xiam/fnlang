@@ -1,7 +1,6 @@
 package fnlang
 
 import (
-	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,35 +29,35 @@ func TestUserError(t *testing.T) {
 	}{
 		{
 			In: `
-						[
-							[9 2 7 (:error "failed 1") 5 6 7]
-							[8 7 3 4 5]
-							[1 (:error "failed 2") 5]
-							663
-							757
-						]
-						[8 5 4 2 4]
-						5 6
-					`,
+							[
+								[9 2 7 (:error "failed 1") 5 6 7]
+								[8 7 3 4 5]
+								[1 (:error "failed 2") 5]
+								663
+								757
+							]
+							[8 5 4 2 4]
+							5 6
+						`,
 		},
 		{
 			In: `
-					(defn foo [] [
-						(echo "foo")
-						1
-						[
-							9 99
-							(:error "stopped")
-							999
+						(defn foo [] [
+							(echo "foo")
+							1
 							[
-								3 33 333
+								9 99
+								(:error "stopped")
+								999
+								[
+									3 33 333
+								]
 							]
-						]
-						2
-						[5 6]
-					])
-					(foo)
-				`,
+							2
+							[5 6]
+						])
+						(foo)
+					`,
 		},
 		{
 			In: `
@@ -79,7 +78,6 @@ func TestUserError(t *testing.T) {
 
 		_, result, err := eval(root)
 		assert.NoError(t, err)
-
-		log.Printf("RESULT: %v", result)
+		assert.NotNil(t, result)
 	}
 }

@@ -30,7 +30,6 @@ func execFunctionBody(ctx *context.Context, body *context.Value) error {
 		ctx.Yield(body)
 		return nil
 	case context.ValueTypeFunction:
-		log.Printf("execFunctionBody: FUNCTION")
 		newCtx := context.New(ctx).Name("exec-body")
 		fnErr := make(chan error, 1)
 		go func() {
@@ -48,7 +47,6 @@ func execFunctionBody(ctx *context.Context, body *context.Value) error {
 		return nil
 	case context.ValueTypeList:
 		newCtx := context.New(ctx).Name("exec-list")
-		log.Printf("execFunctionBody: LIST")
 		go func() error {
 			defer newCtx.Exit(nil)
 			for _, item := range body.List() {
@@ -94,12 +92,10 @@ func derefFunc(ctx *context.Context, fn *context.Function) (*context.Value, erro
 }
 
 func execFunc(ctx *context.Context, fn *context.Function, args []*context.Value) error {
-	log.Printf("FN: %v, ARGS: %v", fn, args)
 	go func() {
 		defer ctx.Close()
 
 		for i := 0; i < len(args) && ctx.Accept(); i++ {
-			log.Printf("CTX: %v, ARGS[%d]: %v (%v)", ctx.IsExecutable(), i, args[i], args[i].Type())
 			ctx.Push(args[i])
 		}
 	}()
@@ -108,8 +104,6 @@ func execFunc(ctx *context.Context, fn *context.Function, args []*context.Value)
 }
 
 func execExpr(ctx *context.Context, expr *context.Value, values []*context.Value) error {
-	log.Printf("EXEC-EXPR: %v", expr.Type())
-
 	switch expr.Type() {
 	case context.ValueTypeInt:
 		ctx.Yield(expr)
@@ -147,19 +141,16 @@ func execExpr(ctx *context.Context, expr *context.Value, values []*context.Value
 		ctx.Yield(node)
 		return nil
 	case context.ValueTypeFunction:
-		log.Printf("GOT EXPR FUNCTION: %v", expr)
 		fn, err := derefFunc(ctx, expr.Function())
 		if err != nil {
 			return err
 		}
-		log.Printf("GOT DEREF FUNCTION: %v", fn)
 		if fn.Type() == context.ValueTypeFunction {
 			return execFunc(ctx, fn.Function(), values)
 		}
 		return execExpr(ctx, fn, values)
 	case context.ValueTypeSymbol:
 		fn, err := ctx.Get(expr.Symbol())
-		log.Printf("GET NAME: %v, VALUE: %v", expr.Symbol(), fn)
 		if err != nil {
 			if err == context.ErrUndefinedFunction {
 				return fmt.Errorf("undefined function %q", fn.Symbol())
@@ -216,7 +207,6 @@ func newErrorMap(err error) *context.Value {
 
 func runtimeError(ctx *context.Context, n *ast.Node, err error) error {
 	if n == nil {
-		log.Printf("runtime error: %v", err)
 		ctx.Yield(newErrorMap(err))
 		ctx.Exit(err)
 		return nil
@@ -249,7 +239,6 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 	switch n.Type() {
 
 	case ast.NodeTypeList:
-		log.Printf("EVAL.LIST")
 		newCtx := context.New(ctx).Name("list")
 
 		fnErr := make(chan error, 1)
@@ -262,7 +251,6 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("VAUE: %v", value)
 		ctx.Yield(value)
 
 		if err := <-fnErr; err != nil {
@@ -375,7 +363,6 @@ func eval(node *ast.Node) (*context.Context, []*context.Value, error) {
 	}
 
 	if err := <-fnErr; err != nil {
-		log.Printf("values: %v", values)
 		return nil, nil, err
 	}
 
