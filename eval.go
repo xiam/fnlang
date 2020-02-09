@@ -24,50 +24,6 @@ func Defn(name string, fn func(ctx *context.Context) error) {
 	}
 }
 
-func execFunctionBody(ctx *context.Context, body *context.Value) error {
-	switch body.Type() {
-	case context.ValueTypeInt:
-		ctx.Yield(body)
-		return nil
-	case context.ValueTypeFunction:
-		newCtx := context.New(ctx).Name("exec-body")
-		fnErr := make(chan error, 1)
-		go func() {
-			defer newCtx.Exit(nil)
-			fnErr <- body.Function().Exec(newCtx)
-		}()
-		values, err := newCtx.Results()
-		if err != nil {
-			return err
-		}
-		ctx.Yield(values.List()...)
-		if err := <-fnErr; err != nil {
-			return runtimeError(ctx, body.Node(), err)
-		}
-		return nil
-	case context.ValueTypeList:
-		newCtx := context.New(ctx).Name("exec-list")
-		go func() error {
-			defer newCtx.Exit(nil)
-			for _, item := range body.List() {
-				if err := execFunctionBody(newCtx, item); err != nil {
-					return err
-				}
-			}
-			return nil
-		}()
-		values, err := newCtx.Results()
-		if err != nil {
-			return err
-		}
-		ctx.Yield(values)
-		return nil
-	default:
-		log.Fatalf("unhandled type: %v", body.Type())
-		panic("unhandled")
-	}
-}
-
 func derefFunc(ctx *context.Context, fn *context.Function) (*context.Value, error) {
 	execCtx := context.New(ctx).Name("deref-exec")
 
@@ -205,7 +161,7 @@ func newErrorMap(err error) *context.Value {
 	return context.NewMapValue(map[context.Value]*context.Value{*k: v})
 }
 
-func runtimeError(ctx *context.Context, n *ast.Node, err error) error {
+func RuntimeError(ctx *context.Context, n *ast.Node, err error) error {
 	if n == nil {
 		ctx.Yield(newErrorMap(err))
 		ctx.Exit(err)
@@ -254,7 +210,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 		ctx.Yield(value)
 
 		if err := <-fnErr; err != nil {
-			return runtimeError(ctx, n, err)
+			return RuntimeError(ctx, n, err)
 		}
 
 		return nil
@@ -312,7 +268,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 		}
 
 		if err := <-fnErr; err != nil {
-			return runtimeError(ctx, n, err)
+			return RuntimeError(ctx, n, err)
 		}
 
 		fn := prepareFunc(values.List())
@@ -328,11 +284,11 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 
 			values, err := execCtx.Results()
 			if err != nil {
-				return runtimeError(ctx, n, err)
+				return RuntimeError(ctx, n, err)
 			}
 
 			if err := <-fnErr; err != nil {
-				return runtimeError(ctx, n, err)
+				return RuntimeError(ctx, n, err)
 			}
 
 			if len(values.List()) == 1 {
@@ -348,7 +304,7 @@ func evalContext(ctx *context.Context, n *ast.Node) error {
 	panic("unreachable")
 }
 
-func eval(node *ast.Node) (*context.Context, []*context.Value, error) {
+func Eval(node *ast.Node) (*context.Context, []*context.Value, error) {
 	newCtx := context.New(defaultContext).Name("eval")
 
 	fnErr := make(chan error, 1)

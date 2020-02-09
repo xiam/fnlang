@@ -1,9 +1,10 @@
-package fnlang
+package fnlang_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/xiam/fnlang"
 	"github.com/xiam/sexpr/parser"
 )
 
@@ -76,7 +77,7 @@ func TestUserError(t *testing.T) {
 		root, err := parser.Parse([]byte(testCases[i].In))
 		assert.NoError(t, err)
 
-		_, result, err := eval(root)
+		_, result, err := fnlang.Eval(root)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	}

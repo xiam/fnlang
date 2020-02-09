@@ -1,15 +1,61 @@
-package fnlang
+package stdlib
 
 import (
 	"errors"
 	"fmt"
+	"log"
 
+	"github.com/xiam/fnlang"
 	"github.com/xiam/fnlang/context"
 )
 
+func execFunctionBody(ctx *context.Context, body *context.Value) error {
+	switch body.Type() {
+	case context.ValueTypeInt:
+		ctx.Yield(body)
+		return nil
+	case context.ValueTypeFunction:
+		newCtx := context.New(ctx).Name("exec-body")
+		fnErr := make(chan error, 1)
+		go func() {
+			defer newCtx.Exit(nil)
+			fnErr <- body.Function().Exec(newCtx)
+		}()
+		values, err := newCtx.Results()
+		if err != nil {
+			return err
+		}
+		ctx.Yield(values.List()...)
+		if err := <-fnErr; err != nil {
+			return fnlang.RuntimeError(ctx, body.Node(), err)
+		}
+		return nil
+	case context.ValueTypeList:
+		newCtx := context.New(ctx).Name("exec-list")
+		go func() error {
+			defer newCtx.Exit(nil)
+			for _, item := range body.List() {
+				if err := execFunctionBody(newCtx, item); err != nil {
+					return err
+				}
+			}
+			return nil
+		}()
+		values, err := newCtx.Results()
+		if err != nil {
+			return err
+		}
+		ctx.Yield(values)
+		return nil
+	default:
+		log.Fatalf("unhandled type: %v", body.Type())
+		panic("unhandled")
+	}
+}
+
 func init() {
 
-	Defn("when", func(ctx *context.Context) error {
+	fnlang.Defn("when", func(ctx *context.Context) error {
 		for {
 			if !ctx.Next() {
 				break
@@ -37,7 +83,7 @@ func init() {
 		return nil
 	})
 
-	Defn("push", func(ctx *context.Context) error {
+	fnlang.Defn("push", func(ctx *context.Context) error {
 		var name *context.Value
 		var err error
 
@@ -71,7 +117,7 @@ func init() {
 		return nil
 	})
 
-	Defn("-", func(ctx *context.Context) error {
+	fnlang.Defn("-", func(ctx *context.Context) error {
 		result := (interface{})(int64(0))
 		for i := 0; ctx.Next(); i++ {
 			value, err := ctx.Argument()
@@ -99,7 +145,7 @@ func init() {
 		return nil
 	})
 
-	Defn("+", func(ctx *context.Context) error {
+	fnlang.Defn("+", func(ctx *context.Context) error {
 		result := (interface{})(int64(0))
 		for ctx.Next() {
 			value, err := ctx.Argument()
@@ -122,7 +168,7 @@ func init() {
 		return nil
 	})
 
-	Defn("/", func(ctx *context.Context) error {
+	fnlang.Defn("/", func(ctx *context.Context) error {
 		result := (interface{})(nil)
 		for ctx.Next() {
 			value, err := ctx.Argument()
@@ -152,7 +198,7 @@ func init() {
 		return nil
 	})
 
-	Defn("*", func(ctx *context.Context) error {
+	fnlang.Defn("*", func(ctx *context.Context) error {
 		result := (interface{})(int64(1))
 		for ctx.Next() {
 			value, err := ctx.Argument()
@@ -175,12 +221,12 @@ func init() {
 		return nil
 	})
 
-	Defn(":false", func(ctx *context.Context) error {
+	fnlang.Defn(":false", func(ctx *context.Context) error {
 		ctx.Yield(context.False)
 		return nil
 	})
 
-	Defn(":true", func(ctx *context.Context) error {
+	fnlang.Defn(":true", func(ctx *context.Context) error {
 		for ctx.Next() {
 			_, err := ctx.Argument()
 			if err != nil {
@@ -192,7 +238,7 @@ func init() {
 		return nil
 	})
 
-	Defn("echo", func(ctx *context.Context) error {
+	fnlang.Defn("echo", func(ctx *context.Context) error {
 		for ctx.Next() {
 			value, err := ctx.Argument()
 			if err != nil {
@@ -204,7 +250,7 @@ func init() {
 		return nil
 	})
 
-	Defn("=", func(ctx *context.Context) error {
+	fnlang.Defn("=", func(ctx *context.Context) error {
 		var first *context.Value
 		for ctx.Next() {
 			value, err := ctx.Argument()
@@ -227,13 +273,13 @@ func init() {
 		return nil
 	})
 
-	Defn("nop", func(ctx *context.Context) error {
+	fnlang.Defn("nop", func(ctx *context.Context) error {
 		ctx.Yield(context.Nil)
 
 		return nil
 	})
 
-	Defn("fn", func(ctx *context.Context) error {
+	fnlang.Defn("fn", func(ctx *context.Context) error {
 		var params, body *context.Value
 
 		ctx = ctx.NonExecutable()
@@ -270,7 +316,7 @@ func init() {
 		return nil
 	})
 
-	Defn("defn", func(ctx *context.Context) error {
+	fnlang.Defn("defn", func(ctx *context.Context) error {
 		var name, params, body *context.Value
 
 		ctx = ctx.NonExecutable()
@@ -317,7 +363,7 @@ func init() {
 		return nil
 	})
 
-	Defn("assert", func(ctx *context.Context) error {
+	fnlang.Defn("assert", func(ctx *context.Context) error {
 		for ctx.Next() {
 			var v1, v2 *context.Value
 			var err error
@@ -348,7 +394,7 @@ func init() {
 		return nil
 	})
 
-	Defn("print", func(ctx *context.Context) error {
+	fnlang.Defn("print", func(ctx *context.Context) error {
 		for ctx.Next() {
 			value, err := ctx.Argument()
 			if err != nil {
@@ -361,7 +407,7 @@ func init() {
 		return nil
 	})
 
-	Defn("get", func(ctx *context.Context) error {
+	fnlang.Defn("get", func(ctx *context.Context) error {
 		var name *context.Value
 		ctx = ctx.NonExecutable()
 		for i := 0; ctx.Next(); i++ {
@@ -387,7 +433,7 @@ func init() {
 		return nil
 	})
 
-	Defn("set", func(ctx *context.Context) error {
+	fnlang.Defn("set", func(ctx *context.Context) error {
 		var name, value *context.Value
 		ctx = ctx.NonExecutable()
 		for i := 0; ctx.Next(); i++ {
@@ -420,7 +466,7 @@ func init() {
 		return nil
 	})
 
-	Defn(":error", func(ctx *context.Context) error {
+	fnlang.Defn(":error", func(ctx *context.Context) error {
 		for ctx.Next() {
 			value, err := ctx.Argument()
 			if err != nil {

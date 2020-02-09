@@ -1,9 +1,11 @@
-package fnlang
+package fnlang_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/xiam/fnlang"
+	_ "github.com/xiam/fnlang/stdlib"
 	"github.com/xiam/sexpr/ast"
 	"github.com/xiam/sexpr/parser"
 )
@@ -848,7 +850,7 @@ func TestParserEvaluate(t *testing.T) {
 
 		ast.Print(root)
 
-		_, result, err := eval(root)
+		_, result, err := fnlang.Eval(root)
 		assert.NoError(t, err)
 
 		assert.Equal(t, testCases[i].Out, result[0].String())
