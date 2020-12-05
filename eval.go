@@ -168,12 +168,12 @@ func RuntimeError(ctx *context.Context, n *ast.Node, err error) error {
 		return nil
 	}
 	tok := n.Token()
-	line, col := tok.Pos()
+	pos := tok.Pos()
 	log.Printf("runtime error: %v (near %v, line: %v, col: %v)",
 		err,
 		fmt.Sprintf("[%s]", string(ast.Encode(n.Parent()))),
-		line,
-		col)
+		pos.Line,
+		pos.Column)
 	ctx.Yield(newErrorMap(err))
 	ctx.Exit(err)
 	return nil

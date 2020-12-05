@@ -19,8 +19,8 @@ func TestSyntaxError(t *testing.T) {
 
 	for i := range testCases {
 		root, err := parser.Parse([]byte(testCases[i].In))
-		assert.Error(t, err)
-		assert.Nil(t, root)
+		assert.NoError(t, err)
+		assert.NotNil(t, root)
 	}
 }
 
