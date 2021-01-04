@@ -1,55 +1,56 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/xiam/fnlang"
 	_ "github.com/xiam/fnlang/stdlib"
-	//"github.com/xiam/sexpr/ast"
 	"github.com/xiam/sexpr/parser"
-	"io"
 	"log"
+	"strings"
 )
+
+func indentation(line string) string {
+	var indent string
+	for _, c := range line {
+		if c == ' ' || c == '\t' {
+			indent += string(c)
+		}
+	}
+	return indent
+}
 
 func main() {
 	rl := newReadLiner()
 	defer rl.Close()
 
-	quitErr := make(chan error)
+	s := fnlang.New()
 
-	r, w := io.Pipe()
-
-	go func() {
-		root, err := parser.NewStreamer(r)
-		//log.Printf("ROOT: %v, err: %v", root, err)
-		//ast.Print(root)
-		if err != nil {
-			quitErr <- err
-			return
-		}
-		_, res, err := fnlang.Eval(root)
-		if err != nil {
-			quitErr <- err
-			return
-		}
-		fmt.Println(res[0].String())
-		quitErr <- nil
-	}()
-
+	var buf string // TODO: use strings.Builder
 	for {
-		s, err := rl.Prompt()
+
+		line, err := rl.Prompt()
 		if err != nil {
-			w.CloseWithError(err)
+			log.Printf("prompt: %v", err)
 			break
 		}
-		_, err = w.Write([]byte(s + "\n"))
+
+		buf += line + "\n"
+		values, err := s.Eval(strings.NewReader(buf))
 		if err != nil {
-			w.CloseWithError(err)
-			break
+			if errors.Is(err, parser.ErrUnexpectedEOF) {
+				// TODO: add indentation suggestion
+				rl.SetPrompt("... ")
+				continue
+			}
+			fmt.Println("!!! %v", err)
+			continue
 		}
+		fmt.Printf("--> %v\n", values[0])
+
+		buf = ""
+		rl.SetPrompt(prompt)
 	}
 
-	err := <-quitErr
-	if err != nil {
-		log.Fatalf("fn: %v", err)
-	}
+	log.Printf("VALUES: %v", s.Values())
 }

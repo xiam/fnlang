@@ -2,10 +2,13 @@ package fnlang
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 
 	"github.com/xiam/fnlang/context"
 	"github.com/xiam/sexpr/ast"
+	"github.com/xiam/sexpr/parser"
 )
 
 var defaultContext = context.New(nil).Name("root").Executable()
@@ -333,6 +336,31 @@ func Eval(node *ast.Node) (*context.Context, []*context.Value, error) {
 	return newCtx, values, nil
 }
 
+func evalInContext(ctx *context.Context, node *ast.Node) ([]*context.Value, error) {
+	newCtx := context.New(ctx)
+
+	fnErr := make(chan error, 1)
+	go func() {
+		defer newCtx.Exit(nil)
+		fnErr <- evalContext(newCtx, node)
+	}()
+
+	values, err := newCtx.Collect()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := <-fnErr; err != nil {
+		return nil, err
+	}
+
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	return values, nil
+}
+
 func mapElement(value *context.Value, path []*context.Value) (*context.Value, error) {
 	for i := range path {
 		k := *path[i]
@@ -368,4 +396,43 @@ func mapListItem(value *context.Value, path []*context.Value) (*context.Value, e
 	}
 
 	return value, nil
+}
+
+type Streamer struct {
+	ctx    *context.Context
+	values *context.Value
+}
+
+func New() *Streamer {
+	return &Streamer{
+		ctx:    context.New(defaultContext).Name("script"),
+		values: context.NewListValue([]*context.Value{}),
+	}
+}
+
+func (s *Streamer) Values() []*context.Value {
+	return s.values.List()
+}
+
+func (s *Streamer) Eval(r io.Reader) ([]*context.Value, error) {
+	z, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	n, err := parser.Parse(z)
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := evalInContext(s.ctx, n)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := context.Append(s.values, values[0].List()...); err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }

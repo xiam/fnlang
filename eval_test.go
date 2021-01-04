@@ -1,6 +1,8 @@
 package fnlang_test
 
 import (
+	"log"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -855,4 +857,33 @@ func TestParserEvaluate(t *testing.T) {
 
 		assert.Equal(t, testCases[i].Out, result[0].String())
 	}
+}
+
+func TestStreamer(t *testing.T) {
+	input := []string{
+		"(+ 3 2 4 5)",
+		"(- 1 2 4 5)",
+		"(+ 0.2 0.3 0.41 4 0.1 5)",
+		"(- 0.2 0.3 0.41 4 0.1 5)",
+		"(* 2 3 4)",
+		"(* -2.2 3 6 -3 -4.6)",
+		"(/ 6 3)",
+		"(", // Error to be ignored
+		"(/ 6.6 3.3)",
+		"(/ 6 33)",
+		"(/ 6.0 33)",
+		"(/ 6 33.0)",
+	}
+
+	s := fnlang.New()
+	for _, line := range input {
+		values, err := s.Eval(strings.NewReader(line))
+		assert.NoError(t, err)
+		if values != nil {
+			log.Printf("values: %v", values[0])
+		}
+	}
+
+	values := s.Values()
+	log.Printf("result: %v", values)
 }

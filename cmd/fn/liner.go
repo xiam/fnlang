@@ -22,3 +22,7 @@ func newReadLiner() *readLiner {
 func (rl *readLiner) Prompt() (string, error) {
 	return rl.State.Prompt(rl.prompt)
 }
+
+func (rl *readLiner) SetPrompt(prompt string) {
+	rl.prompt = prompt
+}
