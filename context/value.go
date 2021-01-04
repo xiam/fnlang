@@ -1,6 +1,7 @@
 package context
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -237,6 +238,14 @@ func NewArrayValue(v []*Value) *Value {
 		v:         v,
 		valueType: ValueTypeList,
 	}
+}
+
+func Append(v *Value, vs ...*Value) error {
+	if v.valueType != ValueTypeList {
+		return errors.New("expecting list")
+	}
+	v.v = append(v.v.([]*Value), vs...)
+	return nil
 }
 
 func NewStringValue(v string) *Value {
